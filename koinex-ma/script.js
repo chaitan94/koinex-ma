@@ -9,15 +9,31 @@ var days = 7;
 var moving_average = function(prices, period) {
     var moving_sum = 0;
     var computed = [];
-    for (var i = 0; i < period; i++) {
-        moving_sum += prices[i][1];
-        computed.push([prices[i][0], moving_sum / (i+1)]);
-    }
-    for (var i = period; i < prices.length; i++) {
-        moving_sum += prices[i][1] - prices[i-period][1];
-        computed.push([prices[i][0], moving_sum / period]);
+    for (var i = 0; i < prices.length; i++) {
+        var drop_off = i >= period ? prices[i-period][1] : 0;
+        moving_sum += prices[i][1] - drop_off;
+        computed.push([prices[i][0], moving_sum / Math.min(i+1, period)]);
     }
     return computed;
+}
+
+var bollinger_bands = function(prices, period) {
+    var moving_sum = 0;
+    var bbl = [];
+    var bbu = [];
+    for (var i = 0; i < prices.length; i++) {
+        var drop_off = i >= period ? prices[i-period][1] : 0;
+        moving_sum += prices[i][1] - drop_off;
+        var moving_average = moving_sum / Math.min(i+1, period);
+        var standard_deviation = 0;
+        for (var j = Math.max(0, i-period+1); j <= i; j++) {
+          standard_deviation += Math.pow(prices[j][1] - moving_average, 2);
+        }
+        standard_deviation = Math.sqrt(standard_deviation / (Math.min(i+1, period)+1));
+        bbl.push([prices[i][0], moving_average - standard_deviation]);
+        bbu.push([prices[i][0], moving_average + standard_deviation]);
+    }
+    return [bbl, bbu];
 }
 
 var get_graph = function(currency, days, period) {
@@ -29,6 +45,7 @@ var get_graph = function(currency, days, period) {
       success: function(data) {
         var prices = data.chart;
         var ma = moving_average(prices, period);
+        var bb = bollinger_bands(prices, period);
         $("#kma-status").text('');
         return Highcharts.stockChart("a-chart", {
           xAxis: {
@@ -66,17 +83,40 @@ var get_graph = function(currency, days, period) {
                 y2: 1
               },
               stops: [[0, "#0c6eb5"], [1, Highcharts.Color("#0c6eb5").setOpacity(0).get("rgba")]]
-            }
+            },
+            lineWidth: 0.5,
           },
           {
             name: "MA",
             type: "line",
             data: ma,
             tooltip: {
-              valueDecimals: 2
+              valueDecimals: 2,
             },
-            threshold: null,
-            color: "#000000"
+            color: "rgba(0,0,0,0.9)",
+            lineWidth: 0.5,
+          },
+          {
+            name: "BBL",
+            type: "line",
+            data: bb[0],
+            tooltip: {
+              valueDecimals: 2,
+            },
+            color: "rgba(0,0,0,0.4)",
+            lineWidth: 0.5,
+            dashStyle: 'dot',
+          },
+          {
+            name: "BBU",
+            type: "line",
+            data: bb[1],
+            tooltip: {
+              valueDecimals: 2,
+            },
+            color: "rgba(0,0,0,0.4)",
+            lineWidth: 0.5,
+            dashStyle: 'dot',
           }]
         })
       },
@@ -108,8 +148,8 @@ var controls = $(`<select id="kma-currency">
 controls.insertBefore(graph_card.children()[3]);
 $("#kma-btn").click(function() {
     currency = $("#kma-currency").val();
-    days = $("#kma-days").val();
-    period = $("#kma-period").val();
+    days = parseInt($("#kma-days").val());
+    period = parseInt($("#kma-period").val());
     $("#kma-status").text('Loading..');
     get_graph(currency, days, period);
 })

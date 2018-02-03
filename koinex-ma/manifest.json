@@ -1,7 +1,7 @@
 {
     "name": "Koinex Moving Averages",
     "description" : "Moving Averages for Koinex",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "manifest_version": 2,
 
     "icons": {
